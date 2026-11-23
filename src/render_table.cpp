@@ -109,6 +109,19 @@ litehtml::pixel_t litehtml::render_item_table::_render(pixel_t x, pixel_t y,
     auto cell_height = [&](int col, int row) {
         const table_cell* cell   = m_grid->cell(col, row);
         pixel_t           height = cell->el->height();
+        // A cell's specified height (CSS height, or the height attribute) is the minimum
+        // height of its row (CSS 2.1, 17.5.3): mail uses empty cells as vertical spacers.
+        // A percentage needs the table's height and is left to the rows.
+        const css_length& css_height = cell->el->css().get_height();
+        if(!css_height.is_predefined() && !css_height.has_percentage())
+        {
+            pixel_t specified = css_height.calc_percent(0_px);
+            if(cell->el->css().get_box_sizing() != box_sizing_border_box)
+            {
+                specified += cell->el->content_offset_height();
+            }
+            height = std::max(height, specified);
+        }
         if(collapse)
         {
             const margins& collapsed = m_grid->collapsed_borders(col, row);
