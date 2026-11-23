@@ -1,4 +1,5 @@
 #include "table.h"
+#include <algorithm>
 #include "element.h"
 #include "render_item.h"
 #include "types.h"
@@ -374,11 +375,29 @@ litehtml::pixel_t litehtml::table_grid::calc_table_width(std::optional<pixel_t> 
     // they are at least as wide as the cell. Do the same for the maximum widths.
     // If possible, widen all spanned columns by approximately the same amount.
 
+    // Cells spanning fewer columns first (as browsers do): a wide span then only adds what the
+    // columns still lack once the narrower spans inside it are accounted for, instead of being
+    // spread over all its columns and added to again (e.g. a colspan="8" image cell over a
+    // colspan="2" price cell in mail newsletters)
+    std::vector<std::pair<int, int>> spanning; // (col, row)
     for(int col = 0; col < cols_count(); col++)
     {
         for(int row = 0; row < rows_count(); row++)
         {
             if(cell(col, row)->colspan > 1)
+            {
+                spanning.emplace_back(col, row);
+            }
+        }
+    }
+    std::stable_sort(spanning.begin(), spanning.end(),
+                     [this](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+                         return cell(a.first, a.second)->colspan < cell(b.first, b.second)->colspan;
+                     });
+
+    for(const auto& [col, row] : spanning)
+    {
+        {
             {
                 pixel_t max_total_width = column(col).max_width;
                 pixel_t min_total_width = column(col).min_width;
