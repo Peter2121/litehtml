@@ -255,24 +255,44 @@ void litehtml::render_item_block_context::apply_vertical_align()
         return position == element_position_absolute || position == element_position_fixed;
     };
 
-    pixel_t content_height = 0_px;
+    // The children may already be shifted by an earlier call: the table can be rendered again
+    // while the cell's laid out children are kept (layout cache), with another cell height.
+    // Their current top is where the content starts now (0 when not shifted); move them from
+    // there to where this cell height puts them, which may be up.
+    pixel_t content_top    = 0_px;
+    pixel_t content_bottom = 0_px;
+    bool    has_content    = false;
     for(const auto& el : m_children)
     {
         if(el->src_el()->css().get_display() != display_none && !is_out_of_flow(el))
         {
-            content_height = std::max(content_height, el->bottom());
+            content_top    = has_content ? std::min(content_top, el->top()) : el->top();
+            content_bottom = has_content ? std::max(content_bottom, el->bottom()) : el->bottom();
+            has_content    = true;
         }
     }
-
-    if(m_pos.height <= content_height)
+    pixel_t content_height = content_bottom - content_top;
+    // Nothing measurable: children restored from the layout cache can report an empty box
+    // here; shifting them by half the cell height would leave them there
+    if(!has_content || content_height <= 0_px)
     {
         return;
     }
 
-    pixel_t add = m_pos.height - content_height;
-    if(va == va_middle)
+    pixel_t target         = 0_px;
+    if(m_pos.height > content_height)
     {
-        add = add / 2;
+        target = m_pos.height - content_height;
+        if(va == va_middle)
+        {
+            target = target / 2;
+        }
+    }
+
+    pixel_t add = target - content_top;
+    if(add == 0_px)
+    {
+        return;
     }
 
     for(const auto& el : m_children)

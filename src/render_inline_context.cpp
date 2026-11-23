@@ -415,26 +415,29 @@ void litehtml::render_item_inline_context::apply_vertical_align()
 {
     if(!m_line_boxes.empty())
     {
-        pixel_t add = 0_px;
-
-        pixel_t content_height = m_line_boxes.back()->bottom();
+        // The lines may already be shifted by an earlier call (see
+        // render_item_block_context::apply_vertical_align): move them from where they are now
+        pixel_t content_top    = m_line_boxes.front()->top();
+        pixel_t content_height = m_line_boxes.back()->bottom() - content_top;
+        pixel_t target         = 0_px;
 
         if(m_pos.height > content_height)
         {
             switch(src_el()->css().get_vertical_align())
             {
             case va_middle:
-                add = (m_pos.height - content_height) / 2;
+                target = (m_pos.height - content_height) / 2;
                 break;
             case va_bottom:
-                add = m_pos.height - content_height;
+                target = m_pos.height - content_height;
                 break;
             default:
-                add = 0_px;
+                target = 0_px;
                 break;
             }
         }
 
+        pixel_t add = target - content_top;
         if(add != 0_px)
         {
             for(auto& box : m_line_boxes)
